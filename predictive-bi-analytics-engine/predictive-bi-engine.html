@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanco Analytics Engine | Predictive BI Simulator</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* THEME CONFIGURATION */
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #3b82f6;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+        }
+        body { background-color: var(--bg-dark); color: var(--text-main); font-family: 'Inter', sans-serif; }
+        .card { background-color: var(--card-bg); border: 1px solid #334155; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .kpi-value { font-family: 'Roboto Mono', monospace; }
+        
+        /* Drag & Drop Zone */
+        #drop-zone { border: 2px dashed #475569; transition: all 0.3s ease; }
+        #drop-zone.dragover { border-color: var(--accent); background-color: rgba(59, 130, 246, 0.1); }
+
+        /* Sliders */
+        .slider { -webkit-appearance: none; width: 100%; height: 6px; background: #334155; border-radius: 5px; outline: none; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3b82f6; cursor: pointer; transition: background .15s ease-in-out; }
+        .slider::-webkit-slider-thumb:hover { background: #60a5fa; }
+
+        /* Modals */
+        .modal-overlay { background-color: rgba(15, 23, 42, 0.95); backdrop-filter: blur(4px); }
+        
+        /* Typography */
+        .prose h3 { color: #fff; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .math-block { background: #0f172a; border: 1px solid #334155; padding: 1rem; border-radius: 0.5rem; text-align: center; font-family: 'Times New Roman', serif; font-style: italic; font-size: 1.2rem; margin: 1rem 0; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 relative">
+
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight"><i class="fa-solid fa-layer-group mr-2 text-blue-500"></i>Sanco Analytics Engine</h1>
+            <p class="text-slate-400 text-sm mt-1">Predictive BI Simulator <span id="current-date"></span></p>
+        </div>
+        <div class="mt-4 md:mt-0 flex gap-3 flex-wrap">
+            <button onclick="toggleModal('governance-modal')" class="px-4 py-2 text-sm font-medium text-amber-500 border border-amber-500/30 rounded-lg hover:bg-amber-500/10 transition">
+                <i class="fa-solid fa-shield-halved mr-2"></i>Assumptions
+            </button>
+            <button onclick="toggleModal('methodology-modal')" class="px-4 py-2 text-sm font-medium text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 transition">
+                <i class="fa-solid fa-book-open mr-2"></i>Methodology
+            </button>
+            <button onclick="loadDemoData()" class="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700 rounded-lg hover:bg-slate-600 transition">
+                <i class="fa-solid fa-play mr-2"></i>Load Demo
+            </button>
+            <button onclick="exportReport()" id="btn-export" class="hidden px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-500 transition">
+                <i class="fa-solid fa-file-export mr-2"></i>Export Excel
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-8">
+        
+        <div id="drop-zone" class="card p-10 text-center cursor-pointer relative">
+            <input type="file" id="fileInput" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <div class="space-y-3">
+                <i class="fa-solid fa-cloud-arrow-up text-4xl text-slate-500"></i>
+                <h3 class="text-xl font-medium text-slate-200">Upload Client Data</h3>
+                <p class="text-slate-400 text-sm">Drag & drop CSV. <br>Auto-maps columns: Rev, Cost, Patients, Util, etc.</p>
+            </div>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div id="dashboard" class="hidden space-y-8">
+            
+            <div>
+                <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider mb-3 pl-1 border-l-4 border-blue-500">&nbsp;Executive Summary</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="card p-4">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Total Revenue</p>
+                        <p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-rev">R0.00</p>
+                        <p class="text-xs text-slate-400 mt-1" id="kpi-rev-trend">-</p>
+                    </div>
+                    <div class="card p-4">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Net Margin</p>
+                        <p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-margin">0%</p>
+                        <p class="text-xs text-slate-400 mt-1" id="kpi-margin-trend">-</p>
+                    </div>
+                    <div class="card p-4">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Utilization</p>
+                        <p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-util">0%</p>
+                        <p class="text-xs text-slate-400 mt-1" id="kpi-util-trend">-</p>
+                    </div>
+                    <div class="card p-4">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Total Patients</p>
+                        <p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-pts">0</p>
+                        <p class="text-xs text-slate-400 mt-1" id="kpi-pts-trend">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <div class="card p-6 bg-slate-800/50 border-slate-600 col-span-1 lg:col-span-3">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-arrow-trend-up mr-2 text-green-400"></i>30-Day Outlook</h3>
+                            <p class="text-sm text-slate-400">Linear regression projection based on historical trends.</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-slate-400 uppercase">Projected Rev (30d)</p>
+                            <p class="text-xl font-bold text-green-400 kpi-value" id="kpi-forecast">R0.00</p>
+                            <p class="text-xs mt-1" id="kpi-forecast-quality">-</p>
+                        </div>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="chart-forecast"></canvas>
+                    </div>
+                </div>
+
+                <div class="card p-6 border-indigo-500/30 col-span-1 lg:col-span-3">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>Strategic Simulator</h3>
+                            <p class="text-sm text-slate-400">Adjust operational levers to model financial impact.</p>
+                        </div>
+                        <button onclick="resetScenarios()" class="text-xs text-indigo-400 hover:text-white underline">Reset</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="space-y-6 col-span-1">
+                            <div>
+                                <div class="flex justify-between text-sm mb-2"><span class="text-slate-300">Utilization</span><span class="text-indigo-400 font-mono" id="val-util">0%</span></div>
+                                <input type="range" min="-20" max="20" value="0" class="slider" id="slider-util" oninput="updateScenario()">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-2"><span class="text-slate-300">No-Show Recovery</span><span class="text-green-400 font-mono" id="val-noshow">0%</span></div>
+                                <input type="range" min="0" max="50" value="0" class="slider" id="slider-noshow" oninput="updateScenario()">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-2"><span class="text-slate-300">Cost Inflation</span><span class="text-rose-400 font-mono" id="val-cost">0%</span></div>
+                                <input type="range" min="0" max="20" value="0" class="slider" id="slider-cost" oninput="updateScenario()">
+                            </div>
+                        </div>
+                        <div class="col-span-2 bg-[#0f172a] rounded-xl p-6 border border-slate-700 flex flex-col justify-center">
+                            <div class="grid grid-cols-2 gap-6">
+                                <div>
+                                    <p class="text-sm text-slate-400">New Revenue</p>
+                                    <div class="flex items-baseline gap-2">
+                                        <p class="text-2xl font-bold text-white kpi-value" id="sim-rev">R0.00</p>
+                                        <span class="text-xs font-mono" id="sim-rev-delta"></span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-400">New Margin</p>
+                                    <div class="flex items-baseline gap-2">
+                                        <p class="text-2xl font-bold text-white kpi-value" id="sim-margin">0.0%</p>
+                                        <span class="text-xs font-mono" id="sim-margin-delta"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-slate-800">
+                                <p class="text-xs text-slate-500 italic" id="sim-insight">Adjust sliders to see insights.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider mb-3 pl-1 border-l-4 border-emerald-500">&nbsp;Operational Intelligence</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="card p-4">
+                        <div class="flex justify-between items-start">
+                            <div><p class="text-xs text-slate-400 uppercase font-bold">AHR (Hourly Rev)</p><p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-ahr">R0.00</p></div>
+                            <i class="fa-solid fa-stopwatch text-emerald-500 opacity-50"></i>
+                        </div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="flex justify-between items-start">
+                            <div><p class="text-xs text-slate-400 uppercase font-bold">Cost / Patient</p><p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-cpp">R0.00</p></div>
+                            <i class="fa-solid fa-user-tag text-rose-500 opacity-50"></i>
+                        </div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="flex justify-between items-start">
+                            <div><p class="text-xs text-slate-400 uppercase font-bold">No-Show Rate</p><p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-nsrate">0%</p></div>
+                            <i class="fa-solid fa-calendar-xmark text-orange-500 opacity-50"></i>
+                        </div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="flex justify-between items-start">
+                            <div><p class="text-xs text-slate-400 uppercase font-bold">Avg AR Days</p><p class="text-2xl font-bold text-white mt-1 kpi-value" id="kpi-ar">0</p></div>
+                            <i class="fa-solid fa-money-bill-transfer text-cyan-500 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="card p-4">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                        <h3 class="text-sm font-bold text-slate-200">The Value Matrix</h3>
+                        <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Util vs Margin</span>
+                    </div>
+                    <div class="h-64"><canvas id="chart-matrix"></canvas></div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                        <h3 class="text-sm font-bold text-slate-200">Labor Efficiency</h3>
+                        <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Cost vs. Productivity</span>
+                    </div>
+                    <div class="h-64"><canvas id="chart-efficiency"></canvas></div>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-sm font-bold text-slate-300 mb-4 border-b border-slate-700 pb-2">Revenue by Service</h3>
+                    <div class="h-64"><canvas id="chart-service"></canvas></div>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-sm font-bold text-slate-300 mb-4 border-b border-slate-700 pb-2">Profit by Location</h3>
+                    <div class="h-64 relative"><canvas id="chart-location"></canvas></div>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="text-sm font-bold text-slate-300 mb-4 border-b border-slate-700 pb-2">Operational Trend (Revenue vs Cost)</h3>
+                <div class="h-64"><canvas id="chart-trend"></canvas></div>
+            </div>
+
+            <div class="card overflow-hidden">
+                <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-300">Raw Data Preview</h3>
+                    <span class="text-xs text-slate-500" id="row-count">0 rows</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-400">
+                        <thead class="bg-slate-800 text-slate-200 uppercase font-medium">
+                            <tr>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3">Location</th>
+                                <th class="px-4 py-3">Service</th>
+                                <th class="px-4 py-3 text-right">Revenue</th>
+                                <th class="px-4 py-3 text-right">Margin %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="governance-modal" class="hidden fixed inset-0 modal-overlay z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-2xl rounded-xl border border-amber-500/30 shadow-2xl">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-amber-500"><i class="fa-solid fa-shield-halved mr-2"></i>Data Assumptions & Governance</h2>
+                <button onclick="toggleModal('governance-modal')" class="text-slate-400 hover:text-white">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 text-sm text-slate-300">
+                <p class="font-bold text-white">To ensure decision integrity, the following assumptions are applied to this analysis:</p>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li><strong>Revenue Recognition:</strong> Revenue is recognized on the <em>Date of Service</em>.</li>
+                    <li><strong>Cost Allocation:</strong> 'Total Cost' includes fixed overhead + variable supply costs.</li>
+                    <li><strong>Utilization Logic:</strong> Calculated as <em>(Booked Hours / Available Clinical Hours)</em>.</li>
+                    <li><strong>No-Show Rate:</strong> Late cancellations (< 24hrs) are treated as No-Shows.</li>
+                    <li><strong>Forecasting Model:</strong> Linear regression (Least Squares) on daily revenue aggregates.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="methodology-modal" class="hidden fixed inset-0 modal-overlay z-50 flex items-center justify-center p-4">
+        <div class="bg-[#1e293b] w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl border border-slate-600 flex flex-col">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-[#0f172a] rounded-t-xl">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Integrated Performance Analysis</h2>
+                    <p class="text-sm text-slate-400">Healthcare Operational Analytics Framework</p>
+                </div>
+                <button onclick="toggleModal('methodology-modal')" class="text-slate-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="p-8 overflow-y-auto prose max-w-none">
+                <p>The datasets and tools used here represent a <strong>Business Intelligence (BI) framework</strong> aimed at optimizing service delivery.</p>
+                <h3>1. The Value Equation</h3>
+                <div class="math-block">Value = (Quality + Outcomes) / Cost</div>
+                <h3>2. Relationship Insights</h3>
+                <ul>
+                    <li><strong>Capacity vs. Revenue:</strong> Linking <em>Utilization</em> with <em>Margin</em> identifies "Stars" vs "Dogs".</li>
+                    <li><strong>Labor Efficiency:</strong> Comparing <em>Productivity</em> with <em>Cost per Patient</em> reveals inefficiencies.</li>
+                    <li><strong>Geographic Strategy:</strong> <em>Profit by Location</em> highlights cross-subsidization.</li>
+                </ul>
+                <h3>3. Critical KPIs</h3>
+                <ul>
+                    <li><strong>AHR (Avg Hourly Rate):</strong> Revenue per clinical hour.</li>
+                    <li><strong>PAC (Patient Acquisition Cost):</strong> Marketing cost per new patient.</li>
+                    <li><strong>AR Days:</strong> Cash flow velocity.</li>
+                </ul>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-[#0f172a] rounded-b-xl text-right">
+                <button onclick="toggleModal('methodology-modal')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-medium">Close Guide</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. STATE MANAGEMENT ---
+        const state = { 
+            data: [], 
+            charts: {},
+            base: { rev: 0, cost: 0, margin: 0, pts: 0, nsRate: 0 }
+        };
+        
+        document.getElementById('current-date').textContent = new Date().toISOString().split('T')[0];
+
+        // --- 2. UTILITY FUNCTIONS ---
+        const toggleModal = (id) => document.getElementById(id).classList.toggle('hidden');
+        const formatCurrency = (v) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(v);
+        
+        // Helper: Find value by multiple possible keys (Flexible Mapping)
+        function findValue(row, possibleKeys) {
+            for (let key of possibleKeys) {
+                const value = row[key];
+                if (value !== undefined && value !== null) return value;
+            }
+            return 0;
+        }
+
+        // Modal Event Listeners
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.classList.add('hidden');
+            }
+        }
+
+        // --- 3. FILE HANDLING ---
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('drop-zone');
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        function handleFile(file) {
+            if (!file) return;
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: (results) => processData(results.data),
+                error: (err) => alert("Error parsing CSV: " + err.message)
+            });
+        }
+
+        // --- 4. DATA GENERATOR (RICH DEMO) ---
+        function loadDemoData() {
+            const demoData = [
+                { Date: "2026-01-01", Location_ID: "CPT-01", Service_Line: "GP", Total_Revenue: 15400, Total_Cost: 9240, Patient_Count: 22, Appt_Util_Pct: 85, Hours_Worked: 10, No_Shows: 2, AR_Days: 30, Productivity_Score: 9.0 },
+                { Date: "2026-01-02", Location_ID: "CPT-01", Service_Line: "GP", Total_Revenue: 16000, Total_Cost: 9500, Patient_Count: 23, Appt_Util_Pct: 88, Hours_Worked: 10, No_Shows: 1, AR_Days: 32, Productivity_Score: 9.2 },
+                { Date: "2026-01-03", Location_ID: "CPT-02", Service_Line: "Physio", Total_Revenue: 8400, Total_Cost: 5880, Patient_Count: 12, Appt_Util_Pct: 70, Hours_Worked: 8, No_Shows: 4, AR_Days: 15, Productivity_Score: 7.2 },
+                { Date: "2026-01-04", Location_ID: "CPT-01", Service_Line: "Pediatrics", Total_Revenue: 18000, Total_Cost: 9000, Patient_Count: 18, Appt_Util_Pct: 95, Hours_Worked: 9, No_Shows: 0, AR_Days: 20, Productivity_Score: 9.5 },
+                { Date: "2026-01-05", Location_ID: "CPT-02", Service_Line: "GP", Total_Revenue: 10500, Total_Cost: 8400, Patient_Count: 15, Appt_Util_Pct: 60, Hours_Worked: 12, No_Shows: 3, AR_Days: 35, Productivity_Score: 8.0 },
+                { Date: "2026-01-06", Location_ID: "JHB-01", Service_Line: "Dentist", Total_Revenue: 45000, Total_Cost: 20000, Patient_Count: 15, Appt_Util_Pct: 90, Hours_Worked: 15, No_Shows: 1, AR_Days: 45, Productivity_Score: 8.5 },
+                { Date: "2026-01-07", Location_ID: "JHB-01", Service_Line: "Dentist", Total_Revenue: 42000, Total_Cost: 19000, Patient_Count: 14, Appt_Util_Pct: 88, Hours_Worked: 14, No_Shows: 2, AR_Days: 44, Productivity_Score: 8.3 },
+                { Date: "2026-01-08", Location_ID: "CPT-01", Service_Line: "GP", Total_Revenue: 14000, Total_Cost: 9000, Patient_Count: 20, Appt_Util_Pct: 80, Hours_Worked: 9, No_Shows: 2, AR_Days: 28, Productivity_Score: 8.8 },
+                { Date: "2026-01-09", Location_ID: "CPT-02", Service_Line: "Physio", Total_Revenue: 9000, Total_Cost: 6000, Patient_Count: 13, Appt_Util_Pct: 75, Hours_Worked: 8, No_Shows: 3, AR_Days: 18, Productivity_Score: 7.5 }
+            ];
+            processData(demoData);
+        }
+
+        // --- 5. CORE LOGIC ENGINE ---
+        function processData(rawData) {
+            try {
+                if (!rawData || rawData.length === 0) throw new Error("No data found.");
+
+                // Data Quality Check
+                let missingCount = 0;
+                let invalidDateCount = 0;
+                const validData = rawData.filter(row => {
+                    const hasDate = row.Date || row.date || row.transaction_date;
+                    const hasRevenue = row.Total_Revenue !== undefined || row.Revenue !== undefined || row.Rev !== undefined || row.sales !== undefined;
+                    if (!hasDate) invalidDateCount++;
+                    if (!hasRevenue) missingCount++;
+                    return hasDate && hasRevenue;
+                });
+
+                // Clear previous alerts
+                const alertContainer = document.getElementById('alert-container');
+                alertContainer.innerHTML = '';
+
+                if (missingCount > 0 || invalidDateCount > 0) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'card p-4 mb-4 border-l-4 border-yellow-500 bg-yellow-900/10';
+                    alertDiv.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-xl"></i>
+                            <div>
+                                <p class="font-bold text-yellow-500">Data Quality Notice</p>
+                                <p class="text-sm text-slate-300 mt-1">
+                                    ${missingCount > 0 ? `${missingCount} rows removed (missing revenue). ` : ''}
+                                    ${invalidDateCount > 0 ? `${invalidDateCount} rows removed (invalid dates).` : ''}
+                                </p>
+                                <p class="text-xs text-slate-400 mt-2">Showing ${validData.length} valid records out of ${rawData.length} total.</p>
+                            </div>
+                        </div>
+                    `;
+                    alertContainer.appendChild(alertDiv);
+                }
+                
+                const cleanData = validData;
+                state.data = cleanData;
+                
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('btn-export').classList.remove('hidden');
+
+                // A. Aggregation Vars
+                let totRev=0, totCost=0, totPts=0, totHours=0, totNS=0, totAR=0, sumUtil=0;
+                
+                // B. Data Structures for Charts
+                const dailyRev = {};
+                const serviceMap = {};
+                const locationMap = {};
+                const dateMap = {}; // Trend chart
+                const matrixData = [];
+
+                // C. Iterate Rows
+                cleanData.forEach(row => {
+                    const rev = findValue(row, ['Total_Revenue', 'Revenue', 'Rev', 'sales', 'income']);
+                    const cost = findValue(row, ['Total_Cost', 'Cost', 'expense', 'expenses']);
+                    const pts = findValue(row, ['Patient_Count', 'Patients', 'Pts', 'visits', 'headcount']);
+                    const util = findValue(row, ['Appt_Util_Pct', 'Util', 'utilization']);
+                    const hours = findValue(row, ['Hours_Worked', 'Hours', 'hours_worked']) || 1;
+                    const ns = findValue(row, ['No_Shows', 'no_shows', 'NoShows']);
+                    const ar = findValue(row, ['AR_Days', 'ar_days', 'days_outstanding']);
+                    const prod = findValue(row, ['Productivity_Score', 'productivity', 'prod_score']);
+                    const service = findValue(row, ['Service_Line', 'Service', 'service', 'treatment', 'category']) || "Unknown";
+                    const loc = findValue(row, ['Location_ID', 'Location', 'site', 'clinic', 'branch']) || "Unknown";
+                    const date = row.Date || row.date || row.transaction_date;
+
+                    // Totals
+                    totRev += rev; totCost += cost; totPts += pts; totHours += hours; 
+                    totNS += ns; totAR += ar; sumUtil += util;
+
+                    // Daily Map (Forecast)
+                    if(!dailyRev[date]) dailyRev[date] = 0;
+                    dailyRev[date] += rev;
+
+                    // Service Map (Bar + Eff)
+                    if (!serviceMap[service]) serviceMap[service] = { rev:0, cost:0, pts:0, prodSum:0, count:0 };
+                    serviceMap[service].rev += rev;
+                    serviceMap[service].cost += cost;
+                    serviceMap[service].pts += pts;
+                    serviceMap[service].prodSum += prod;
+                    serviceMap[service].count += 1;
+
+                    // Location Map (Profit)
+                    if (!locationMap[loc]) locationMap[loc] = { rev:0, cost:0 };
+                    locationMap[loc].rev += rev;
+                    locationMap[loc].cost += cost;
+
+                    // Date Map (Trend)
+                    if (!dateMap[date]) dateMap[date] = { rev:0, cost:0 };
+                    dateMap[date].rev += rev;
+                    dateMap[date].cost += cost;
+
+                    // Matrix Point
+                    const marginPct = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
+                    matrixData.push({ x: util, y: marginPct, r: pts/1.5, service: service });
+                });
+
+                // D. Tier 1 KPIs
+                const avgUtil = sumUtil / cleanData.length;
+                const netMargin = totRev > 0 ? (totRev - totCost)/totRev : 0;
+                
+                document.getElementById('kpi-rev').innerText = formatCurrency(totRev);
+                document.getElementById('kpi-margin').innerText = (netMargin*100).toFixed(1) + "%";
+                document.getElementById('kpi-util').innerText = avgUtil.toFixed(1) + "%";
+                document.getElementById('kpi-pts').innerText = totPts;
+
+                // Trend Indicators
+                const sorted = [...cleanData].sort((a, b) => new Date(a.Date || a.date) - new Date(b.Date || b.date));
+                const midpoint = Math.floor(sorted.length / 2);
+                const firstHalf = sorted.slice(0, midpoint);
+                const secondHalf = sorted.slice(midpoint);
+
+                const getTrend = (dataSlice, keyList) => dataSlice.reduce((sum, r) => sum + findValue(r, keyList), 0);
+                
+                const fRev = getTrend(firstHalf, ['Total_Revenue', 'Revenue', 'Rev']);
+                const sRev = getTrend(secondHalf, ['Total_Revenue', 'Revenue', 'Rev']);
+                const revGro = fRev > 0 ? ((sRev - fRev) / fRev * 100) : 0;
+                updateTrendUI('kpi-rev-trend', revGro);
+
+                const fCost = getTrend(firstHalf, ['Total_Cost', 'Cost']);
+                const sCost = getTrend(secondHalf, ['Total_Cost', 'Cost']);
+                const fMar = fRev > 0 ? (fRev - fCost)/fRev : 0;
+                const sMar = sRev > 0 ? (sRev - sCost)/sRev : 0;
+                const marGro = (sMar - fMar) * 100;
+                updateTrendUI('kpi-margin-trend', marGro, true);
+
+                const fUtil = getTrend(firstHalf, ['Appt_Util_Pct', 'Util']) / (firstHalf.length || 1);
+                const sUtil = getTrend(secondHalf, ['Appt_Util_Pct', 'Util']) / (secondHalf.length || 1);
+                const utilGro = (sUtil - fUtil);
+                updateTrendUI('kpi-util-trend', utilGro, true);
+
+                const fPts = getTrend(firstHalf, ['Patient_Count', 'Pts']);
+                const sPts = getTrend(secondHalf, ['Patient_Count', 'Pts']);
+                const ptsGro = fPts > 0 ? ((sPts - fPts) / fPts * 100) : 0;
+                updateTrendUI('kpi-pts-trend', ptsGro);
+
+                // E. Tier 2 KPIs
+                const ahr = totRev / totHours;
+                const cpp = totCost / totPts;
+                const nsRate = totNS / (totPts + totNS);
+                const avgAr = totAR / cleanData.length;
+
+                document.getElementById('kpi-ahr').innerText = formatCurrency(ahr);
+                document.getElementById('kpi-cpp').innerText = formatCurrency(cpp);
+                document.getElementById('kpi-nsrate').innerText = (nsRate*100).toFixed(1) + "%";
+                document.getElementById('kpi-ar').innerText = avgAr.toFixed(0);
+                document.getElementById('row-count').innerText = `${cleanData.length} valid rows`;
+
+                // F. Set Baseline for Simulation
+                state.base = { rev: totRev, cost: totCost, margin: netMargin, pts: totPts, nsRate: nsRate };
+                resetScenarios();
+
+                // G. Render All Charts
+                renderForecast(dailyRev);
+                renderMatrix(matrixData);
+                renderEfficiency(serviceMap);
+                renderService(serviceMap);
+                renderLocation(locationMap);
+                renderTrend(dateMap);
+                renderTable(cleanData.slice(0, 5));
+
+            } catch (err) {
+                console.error(err);
+                alert("Processing Error: " + err.message);
+            }
+        }
+
+        function updateTrendUI(id, val, isPoints=false) {
+            const el = document.getElementById(id);
+            const symbol = val >= 0 ? '↗ +' : '↘ ';
+            el.innerText = symbol + Math.abs(val).toFixed(1) + (isPoints ? '' : '%') + ' trend';
+            el.className = 'text-xs mt-1 ' + (val >= 0 ? 'text-green-400' : 'text-red-400');
+        }
+
+        // --- 6. VISUALIZATION FUNCTIONS ---
+
+        function renderForecast(dailyMap) {
+            const dates = Object.keys(dailyMap).sort();
+            const yValues = dates.map(d => dailyMap[d]);
+            const xValues = dates.map((_, i) => i + 1);
+            
+            const n = yValues.length;
+            const sumX = xValues.reduce((a,b)=>a+b, 0);
+            const sumY = yValues.reduce((a,b)=>a+b, 0);
+            const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
+            const sumXX = xValues.reduce((sum, x) => sum + x * x, 0);
+            
+            // Linear Regression
+            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+
+            // R² Calculation
+            const yMean = sumY / n;
+            const ssTot = yValues.reduce((sum, yi) => sum + Math.pow(yi - yMean, 2), 0);
+            const ssRes = yValues.reduce((sum, yi, i) => sum + Math.pow(yi - (slope * xValues[i] + intercept), 2), 0);
+            const r2 = ssTot === 0 ? 0 : 1 - (ssRes / ssTot);
+            
+            // UI Update for R²
+            const qEl = document.getElementById('kpi-forecast-quality');
+            let qColor = r2 > 0.7 ? 'text-green-400' : r2 > 0.4 ? 'text-yellow-400' : 'text-red-400';
+            let qLabel = r2 > 0.7 ? 'High Confidence' : r2 > 0.4 ? 'Moderate' : 'Low Confidence';
+            qEl.innerHTML = `<span class="${qColor}">${qLabel}</span> | R² = ${r2.toFixed(3)}`;
+
+            const projectedData = [];
+            const projectedLabels = [];
+            let projectedSum = 0;
+            for(let i=1; i<=30; i++) {
+                const predY = slope * (n + i) + intercept;
+                projectedData.push(predY);
+                projectedLabels.push(`+${i}d`);
+                projectedSum += predY;
+            }
+            document.getElementById('kpi-forecast').innerText = formatCurrency(projectedSum);
+
+            const ctx = document.getElementById('chart-forecast').getContext('2d');
+            if(state.charts.forecast) state.charts.forecast.destroy();
+            state.charts.forecast = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [...dates, ...projectedLabels],
+                    datasets: [
+                        { label: 'History', data: yValues, borderColor: '#3b82f6', tension: 0.3 },
+                        { label: 'Forecast', data: Array(n).fill(null).concat(projectedData), borderColor: '#4ade80', borderDash: [5,5], tension: 0.1 }
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#cbd5e1'}}}, scales:{y:{grid:{color:'#334155'}, ticks:{color:'#94a3b8'}}, x:{display:false}} }
+            });
+        }
+
+        function renderMatrix(data) {
+            const ctx = document.getElementById('chart-matrix').getContext('2d');
+            if(state.charts.matrix) state.charts.matrix.destroy();
+            state.charts.matrix = new Chart(ctx, { 
+                type: 'bubble', 
+                data: { datasets: [{ label: 'Service', data: data, backgroundColor: 'rgba(59, 130, 246, 0.6)' }] }, 
+                options: { 
+                    responsive:true, maintainAspectRatio:false,
+                    scales: {
+                        x: { title: {display:true, text:'Utilization %', color:'#94a3b8'}, grid:{color:'#334155'}, ticks:{color:'#94a3b8'}},
+                        y: { title: {display:true, text:'Margin %', color:'#94a3b8'}, grid:{color:'#334155'}, ticks:{color:'#94a3b8'}}
+                    },
+                    plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.raw.service}: ${ctx.raw.x}% Util, ${ctx.raw.y.toFixed(1)}% Margin` } } }
+                } 
+            });
+        }
+
+        function renderEfficiency(map) {
+            const ctx = document.getElementById('chart-efficiency').getContext('2d');
+            if(state.charts.eff) state.charts.eff.destroy();
+            const labels = Object.keys(map);
+            const cpp = labels.map(k => map[k].cost / map[k].pts);
+            const prod = labels.map(k => map[k].prodSum / map[k].count);
+            state.charts.eff = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [
+                    { label: 'Cost/Pt (R)', data: cpp, backgroundColor: 'rgba(244, 63, 94, 0.5)', yAxisID: 'y' },
+                    { label: 'Prod Score', data: prod, borderColor: '#10b981', type: 'line', yAxisID: 'y1' }
+                ]},
+                options: { responsive:true, maintainAspectRatio:false, scales: { y: {position:'left', grid:{color:'#334155'}}, y1: {position:'right', grid:{display:false}} } }
+            });
+        }
+
+        function renderService(map) {
+            const ctx = document.getElementById('chart-service').getContext('2d');
+            if(state.charts.service) state.charts.service.destroy();
+            state.charts.service = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(map), datasets: [{ label: 'Rev', data: Object.values(map).map(d=>d.rev), backgroundColor: '#3b82f6' }] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{grid:{color:'#334155'}}, x:{display:false}} } });
+        }
+
+        // FIXED: Scaling and legend for better mobile/zoomed-out visibility
+        function renderLocation(map) {
+            const ctx = document.getElementById('chart-location').getContext('2d');
+            if(state.charts.loc) state.charts.loc.destroy();
+            state.charts.loc = new Chart(ctx, { 
+                type: 'doughnut', 
+                data: { 
+                    labels: Object.keys(map), 
+                    datasets: [{ 
+                        data: Object.values(map).map(d => d.rev - d.cost), 
+                        backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6', '#ec4899'], 
+                        borderWidth: 0 
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    layout: { padding: 10 },
+                    plugins: { 
+                        legend: { 
+                            position: 'bottom', 
+                            labels: { color: '#e2e8f0', boxWidth: 10, font: { size: 10 } } 
+                        } 
+                    } 
+                }
+            });
+        }
+
+        function renderTrend(map) {
+            const ctx = document.getElementById('chart-trend').getContext('2d');
+            if(state.charts.trend) state.charts.trend.destroy();
+            const dates = Object.keys(map).sort();
+            state.charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: { labels: dates, datasets: [
+                    { label: 'Revenue', data: dates.map(d=>map[d].rev), borderColor: '#3b82f6', tension:0.4 },
+                    { label: 'Cost', data: dates.map(d=>map[d].cost), borderColor: '#ef4444', tension:0.4 }
+                ]},
+                options: { responsive:true, maintainAspectRatio:false, scales:{y:{grid:{color:'#334155'}}, x:{grid:{color:'#334155'}}} }
+            });
+        }
+
+        function renderTable(rows) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            rows.forEach(row => {
+                const rev = findValue(row, ['Total_Revenue', 'Revenue', 'Rev']);
+                const cost = findValue(row, ['Total_Cost', 'Cost']);
+                const margin = rev ? ((rev - cost)/rev * 100).toFixed(1) : 0;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-4 py-3">${row.Date || row.date}</td>
+                    <td class="px-4 py-3">${findValue(row, ['Location_ID', 'Location'])}</td>
+                    <td class="px-4 py-3 text-slate-300">${findValue(row, ['Service_Line', 'Service'])}</td>
+                    <td class="px-4 py-3 text-right font-mono text-green-400">${formatCurrency(rev)}</td>
+                    <td class="px-4 py-3 text-right font-mono">${margin}%</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportReport() {
+            if(state.data.length === 0) return;
+            
+            const wb = XLSX.utils.book_new();
+            
+            // Sheet 1: Raw Data
+            const ws1 = XLSX.utils.json_to_sheet(state.data);
+            XLSX.utils.book_append_sheet(wb, ws1, "Raw Data");
+            
+            // Sheet 2: Executive Summary
+            const summary = [
+                { Metric: 'Total Revenue', Value: state.base.rev, Format: 'Currency' },
+                { Metric: 'Total Cost', Value: state.base.cost, Format: 'Currency' },
+                { Metric: 'Net Margin', Value: (state.base.margin * 100).toFixed(1) + '%', Format: 'Percent' },
+                { Metric: 'Total Patients', Value: state.base.pts, Format: 'Number' },
+                { Metric: 'Cost per Patient', Value: (state.base.pts > 0 ? state.base.cost / state.base.pts : 0).toFixed(2), Format: 'Currency' },
+                { Metric: 'No-Show Rate', Value: (state.base.nsRate * 100).toFixed(1) + '%', Format: 'Percent' },
+                { Metric: 'Report Generated', Value: new Date().toISOString(), Format: 'Date' }
+            ];
+            const ws2 = XLSX.utils.json_to_sheet(summary);
+            XLSX.utils.book_append_sheet(wb, ws2, "Executive Summary");
+            
+            // Sheet 3: Recommendations
+            const recommendations = [
+                { Priority: 'High', Action: 'Review services with <15% margin', Owner: 'TBD', Status: 'Open' },
+                { Priority: 'Medium', Action: 'Improve no-show rate to <10%', Owner: 'TBD', Status: 'Open' },
+                { Priority: 'Low', Action: 'Optimize AR days to <30', Owner: 'TBD', Status: 'Open' }
+            ];
+            const ws3 = XLSX.utils.json_to_sheet(recommendations);
+            XLSX.utils.book_append_sheet(wb, ws3, "Action Items");
+            
+            XLSX.writeFile(wb, `SancoAnalytics_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        // --- 7. SIMULATION LOGIC ---
+        function updateScenario() {
+            const utilMod = parseInt(document.getElementById('slider-util').value) / 100;
+            const nsMod = parseInt(document.getElementById('slider-noshow').value) / 100;
+            const costMod = parseInt(document.getElementById('slider-cost').value) / 100;
+
+            document.getElementById('val-util').innerText = (utilMod > 0 ? "+" : "") + (utilMod*100) + "%";
+            document.getElementById('val-noshow').innerText = (nsMod*100) + "%";
+            document.getElementById('val-cost').innerText = "+" + (costMod*100) + "%";
+
+            let newRev = state.base.rev * (1 + utilMod);
+            
+            // No Show Recovery
+            const avgRev = state.base.pts > 0 ? state.base.rev / state.base.pts : 0;
+            const totalSlots = state.base.pts / (1 - state.base.nsRate);
+            const newNSRate = state.base.nsRate * (1 - nsMod);
+            const recoveredPts = (totalSlots * state.base.nsRate) - (totalSlots * newNSRate);
+            newRev += (recoveredPts * avgRev);
+
+            const newCost = state.base.cost * (1 + utilMod) * (1 + costMod);
+            const newMargin = (newRev - newCost) / newRev;
+
+            const revDelta = newRev - state.base.rev;
+            const marginDelta = (newMargin - state.base.margin) * 100;
+
+            document.getElementById('sim-rev').innerText = formatCurrency(newRev);
+            document.getElementById('sim-rev-delta').innerText = (revDelta>=0?"+":"") + formatCurrency(revDelta);
+            document.getElementById('sim-rev-delta').className = "text-xs font-mono " + (revDelta>=0?"text-green-400":"text-red-400");
+            
+            document.getElementById('sim-margin').innerText = (newMargin*100).toFixed(1) + "%";
+            document.getElementById('sim-margin-delta').innerText = (marginDelta>=0?"+":"") + marginDelta.toFixed(1) + "%";
+            document.getElementById('sim-margin-delta').className = "text-xs font-mono " + (marginDelta>=0?"text-green-400":"text-red-400");
+
+            const insight = document.getElementById('sim-insight');
+            if(marginDelta > 2) insight.innerText = "Strategy: Highly Effective.";
+            else if(marginDelta < -1) insight.innerText = "Warning: Margin Erosion.";
+            else insight.innerText = "Neutral Impact.";
+        }
+
+        function resetScenarios() {
+            document.getElementById('slider-util').value = 0;
+            document.getElementById('slider-noshow').value = 0;
+            document.getElementById('slider-cost').value = 0;
+            updateScenario();
+        }
+    </script>
+</body>
+</html>
