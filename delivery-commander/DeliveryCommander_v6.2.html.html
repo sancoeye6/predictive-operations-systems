@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Delivery Commander v6.2 | Driver Edition
+    </title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Apex Logistics Theme */
+            --primary: #1e40af;       /* Deep Indigo */
+            --primary-light: #3b82f6; /* Bright Blue */
+            --surface: #ffffff;
+            --bg: #f3f4f6;
+            --text-main: #111827;
+            --text-sub: #6b7280;
+            --border: #e5e7eb;
+            
+            /* Status Colors */
+            --accent: #8b5cf6;        /* AI Purple */
+            --success: #10b981;       /* Green */
+            --danger: #ef4444;        /* Red */
+            --warning: #f59e0b;       /* Orange/Amber */
+            
+            --nav-height: 70px;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding-bottom: calc(var(--nav-height) + 30px); color: var(--text-main); -webkit-font-smoothing: antialiased; }
+
+        /* HEADER */
+        .header { background: var(--surface); padding: 16px 20px 20px; position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .brand-logo { 
+            background: linear-gradient(135deg, var(--primary) 0%, #1e3a8a 100%); 
+            color: white; padding: 8px 14px; border-radius: 8px; font-weight: 800; font-size: 14px; letter-spacing: -0.5px; box-shadow: 0 2px 4px rgba(30, 64, 175, 0.3); display: flex; align-items: center; gap: 6px;
+        }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .help-btn { width: 32px; height: 32px; border-radius: 50%; background: #f3f4f6; border: 1px solid var(--border); color: var(--primary); font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .driver-badge { background: #eff6ff; color: var(--primary); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid #dbeafe; }
+        
+        .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .stat-card { background: #f8fafc; padding: 10px 5px; border-radius: 12px; text-align: center; border: 1px solid var(--border); transition: transform 0.2s; }
+        .stat-card:active { transform: scale(0.98); }
+        .stat-num { font-size: 20px; font-weight: 800; color: var(--primary); line-height: 1.2; }
+        .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text-sub); letter-spacing: 0.5px; margin-top: 2px; }
+
+        /* LIST CONTAINER */
+        .container { padding: 20px 16px; max-width: 600px; margin: 0 auto; }
+        .section-header { display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; }
+        .section-title { font-weight: 800; font-size: 18px; color: var(--text-main); }
+        .sort-btn { background: white; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 4px; box-shadow: var(--shadow-sm); }
+        .stop-list { display: flex; flex-direction: column; gap: 16px; min-height: 50px; }
+
+        /* EMPTY STATE */
+        #emptyState { text-align: center; padding: 60px 20px; background: white; border-radius: 16px; border: 2px dashed var(--border); display: none; margin-top: 20px; }
+        .empty-icon { font-size: 48px; margin-bottom: 15px; opacity: 0.8; filter: grayscale(100%); }
+        .empty-text { color: var(--text-sub); margin-bottom: 20px; font-size: 14px; line-height: 1.5; }
+        .btn-load { background: var(--primary-light); color: white; border: none; padding: 12px 24px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); transition: transform 0.2s; }
+        .btn-load:active { transform: scale(0.96); }
+
+        /* CARDS */
+        .card { background: white; border-radius: 16px; padding: 18px; position: relative; box-shadow: var(--shadow-md); border: 1px solid var(--border); transition: all 0.2s; overflow: hidden; }
+        .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--border); }
+        
+        .card.urgent { background: #fff1f2; border-color: #fecdd3; }
+        .card.urgent::before { background: var(--danger); }
+        
+        .card.completed { opacity: 0.7; background: #f9fafb; border-color: var(--border); }
+        .card.completed::before { background: var(--success); }
+        
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 14px; align-items: center; }
+        .stop-idx { background: var(--text-main); color: white; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .badges { display: flex; gap: 8px; align-items: center; }
+        .badge-urg { background: var(--danger); color: white; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2); }
+        
+        .check-circle { width: 28px; height: 28px; border: 2px solid var(--border); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: transparent; background: white; transition: all 0.2s; }
+        .check-circle.checked { background: var(--success); border-color: var(--success); color: white; transform: scale(1.1); box-shadow: 0 2px 5px rgba(16, 185, 129, 0.4); }
+
+        /* INPUTS & ACTIONS */
+        .lbl { font-size: 10px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; display: block; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .inp { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; margin-bottom: 12px; background: #f9fafb; color: var(--text-main); transition: border-color 0.2s; font-family: inherit; }
+        .inp:focus { border-color: var(--primary-light); background: white; }
+        .card.urgent .inp { background: white; border-color: #fecdd3; }
+        
+        .row-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 5px; }
+        
+        .btn { padding: 12px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: opacity 0.2s; }
+        .btn:active { opacity: 0.8; }
+        
+        .btn-nav { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(30, 64, 175, 0.2); }
+        .btn-call { background: white; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-del { background: #fee2e2; color: var(--danger); width: 44px; }
+
+        /* NAV & FAB */
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height); background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(5, 1fr); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+        .nav-item { border: none; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ca3af; font-size: 10px; font-weight: 600; cursor: pointer; transition: color 0.2s; }
+        .nav-item.active { color: var(--primary); } 
+        .nav-icon { font-size: 22px; margin-bottom: 4px; display: block; transition: transform 0.2s; }
+        .nav-item:active .nav-icon { transform: scale(0.9); }
+        
+        .nav-ai { color: var(--accent); } 
+        .nav-ai .nav-icon { font-size: 24px; filter: drop-shadow(0 2px 4px rgba(139, 92, 246, 0.3)); }
+        
+        .fab { position: fixed; bottom: calc(var(--nav-height) + 20px); left: 20px; right: 20px; background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; padding: 16px; border-radius: 14px; border: none; font-weight: 700; z-index: 90; display: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); font-size: 16px; align-items: center; justify-content: center; gap: 8px; animation: pulse 2s infinite; }
+        .fab:active { transform: translateY(2px); animation: none; }
+
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 200; display: none; flex-direction: column; animation: fadeIn 0.2s; }
+        .modal-content { background: var(--bg); width: 100%; height: 100%; display: flex; flex-direction: column; }
+        @media(min-width: 600px) {
+            .modal-content { width: 500px; height: 90%; margin: auto; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        }
+        .modal-header { padding: 16px 20px; background: white; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 16px; color: var(--text-main); }
+        
+        .modal-body-scroll { padding: 20px; flex: 1; overflow-y: auto; }
+        
+        .step-box { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+        .prompt-area { width: 100%; height: 80px; padding: 12px; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 8px; font-size: 12px; resize: none; margin-bottom: 12px; color: var(--primary); font-family: monospace; }
+        .json-area { width: 100%; height: 150px; padding: 12px; border: 2px solid var(--accent); border-radius: 8px; font-size: 12px; margin-bottom: 12px; font-family: monospace; background: #fbfbfc; }
+        
+        .btn-copy { background: var(--text-main); color: white; width: 100%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-import { background: var(--accent); color: white; width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3); transition: transform 0.2s; }
+
+        /* HELP ITEMS */
+        .help-item { background: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--border); display: flex; gap: 12px; }
+        .help-icon { font-size: 24px; min-width: 40px; height: 40px; background: var(--bg); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .help-text h4 { margin: 0 0 4px 0; font-size: 14px; color: var(--text-main); }
+        .help-text p { margin: 0; font-size: 12px; color: var(--text-sub); line-height: 1.4; }
+
+        /* UTILS */
+        .loader { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 300; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 15px; }
+        .loader-spinner { width:40px;height:40px;border:4px solid #e5e7eb;border-top:4px solid var(--primary);border-radius:50%;animation:spin 0.8s linear infinite; }
+        .loader-text { font-weight: 600; color: var(--text-sub); }
+        
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #111827; color: white; padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 600; z-index: 300; display: none; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); animation: slideDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideDown { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-top">
+            <div class="brand-logo">
+                <span>⚡ APEX LOGISTICS</span>
+            </div>
+            <div class="header-actions">
+                <button class="help-btn" onclick="openHelp()">?</button>
+                <div class="driver-badge" id="driverName">Driver</div>
+            </div>
+        </div>
+        <div class="stats-bar">
+            <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total</div></div>
+            <div class="stat-card"><div class="stat-num" id="statPending">0</div><div class="stat-label">Pending</div></div>
+            <div class="stat-card"><div class="stat-num" id="statDone">0</div><div class="stat-label">Done</div></div>
+            <div class="stat-card"><div class="stat-num" id="statUrg">0</div><div class="stat-label">Urgent</div></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section-header">
+            <div class="section-title">Todays Route</div>
+            <button class="sort-btn" onclick="sortCards()">
+                <span>⇅</span> Priority Sort
+            </button>
+        </div>
+        
+        <div id="emptyState">
+            <div class="empty-icon">📦</div>
+            <h3 style="margin:0 0 8px 0;">Route Empty</h3>
+            <p class="empty-text">
+                Scan labels, upload a file, or use AI.<br>
+                New here? Load the training route below.
+            </p>
+            <button class="btn-load" onclick="loadSampleData()">🧪 Load Training Route</button>
+        </div>
+
+        <div id="list" class="stop-list"></div>
+    </div>
+
+    <button id="goBtn" class="fab" onclick="routeAll()">
+        <span>🚀 Start Route</span> 
+        <span id="routeCount" style="background:rgba(255,255,255,0.25); padding:2px 8px; border-radius:6px; font-size:14px;">0</span>
+    </button>
+
+    <div class="nav-bar">
+        <button class="nav-item active" onclick="openCam()"><span class="nav-icon">📷</span>Scan</button>
+        <button class="nav-item" onclick="document.getElementById('fileIn').click()"><span class="nav-icon">📂</span>Upload</button>
+        <button class="nav-item" onclick="addCard()"><span class="nav-icon">➕</span>Manual</button>
+        <button class="nav-item nav-ai" onclick="openAI()"><span class="nav-icon">✨</span>AI Batch</button>
+        <button class="nav-item" onclick="settings()"><span class="nav-icon">⚙</span>Set</button>
+    </div>
+
+    <input type="file" id="camIn" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="fileIn" accept="image/*" style="display:none">
+
+    <div id="aiModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><span>✨ AI Batch Import</span><button onclick="closeAI()" style="border:none;background:none;font-size:24px;color:#6b7280;">×</button></div>
+            <div class="modal-body-scroll">
+                <div class="step-box">
+                    <div style="font-weight:700; font-size:11px; color:#6b7280; margin-bottom:8px; letter-spacing:0.5px;">STEP 1: GET PROMPT</div>
+                    <textarea id="promptText" class="prompt-area" readonly>Analyze these shipping labels. Return ONLY a JSON array with objects containing fields: "name" (recipient), "address" (full address), "phone" (if visible), "urgent" (boolean, true if EXP/Urgent). No markdown.</textarea>
+                    <button class="btn-copy" onclick="copyPrompt()">📋 Copy Prompt</button>
+                </div>
+                <div class="step-box" style="border-color: var(--accent); box-shadow: 0 4px 10px rgba(139, 92, 246, 0.1);">
+                    <div style="font-weight:700; font-size:11px; color:var(--accent); margin-bottom:8px; letter-spacing:0.5px;">STEP 2: PASTE RESULT</div>
+                    <textarea id="jsonInput" class="json-area" placeholder="Paste JSON here..."></textarea>
+                    <button class="btn-import" onclick="processBatch()">📥 Import Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><span>📖 Driver Manual</span><button onclick="closeHelp()" style="border:none;background:none;font-size:24px;color:#6b7280;">×</button></div>
+            <div class="modal-body-scroll">
+                <div class="help-item">
+                    <div class="help-icon">📷</div>
+                    <div class="help-text">
+                        <h4>Camera Scan</h4>
+                        <p>Tap 'Scan' to snap a photo of a shipping label. Crop tightly around the text for best results.</p>
+                    </div>
+                </div>
+                <div class="help-item">
+                    <div class="help-icon" style="color:var(--accent);">✨</div>
+                    <div class="help-text">
+                        <h4>AI Batch Import</h4>
+                        <p>Upload label images to ChatGPT/Claude with the prompt provided. Paste the JSON result back here to add multiple stops at once.</p>
+                    </div>
+                </div>
+                <div class="help-item">
+                    <div class="help-icon" style="color:var(--success);">🚀</div>
+                    <div class="help-text">
+                        <h4>Routing (Optimized)</h4>
+                        <p>Tap 'Start Route' to open Google Maps. It automatically calculates the fastest route starting from <b>My+Location</b> (your car).</p>
+                    </div>
+                </div>
+                <div class="help-item">
+                    <div class="help-icon" style="color:var(--danger);">🔴</div>
+                    <div class="help-text">
+                        <h4>Priority Handling</h4>
+                        <p>Red cards are Urgent. Use the 'Priority Sort' button to move them to the top of your list.</p>
+                    </div>
+                </div>
+                <div class="help-item">
+                    <div class="help-icon">🧪</div>
+                    <div class="help-text">
+                        <h4>Training Mode</h4>
+                        <p>Need to test the app? Use the button below to load fake data.</p>
+                        <button class="btn-copy" style="margin-top:8px;" onclick="loadSampleData(); closeHelp();">Load Sample Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cropModal" class="modal">
+        <div style="padding:15px;display:flex;justify-content:space-between;color:white;background:black;"><span>Adjust Crop</span><button onclick="closeCrop()" style="background:none;border:none;color:white;font-size:24px;">×</button></div>
+        <div style="flex:1;background:black;position:relative;"><img id="cropImg" style="max-width:100%;display:block;"></div>
+        <div style="padding:20px;background:black;display:flex;gap:15px;border-top:1px solid #333;">
+            <button class="btn" style="flex:1;background:#374151;color:white;" onclick="closeCrop()">Cancel</button>
+            <button class="btn" style="flex:1;background:var(--success);color:white;" onclick="doOCR()">✅ Read</button>
+        </div>
+    </div>
+
+    <div id="loader" class="loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">Processing Image...</div>
+    </div>
+    <div id="toast" class="toast">Action Complete</div>
+
+    <script>
+        let stops = [];
+        let cropper = null;
+        let worker = null;
+
+        // Init OCR
+        (async () => {
+            try {
+                worker = await Tesseract.createWorker();
+                await worker.loadLanguage('eng');
+                await worker.initialize('eng');
+                console.log("OCR Ready");
+            } catch (e) { console.error(e); }
+            loadData();
+        })();
+
+        // File Handlers
+        function openCam() { document.getElementById('camIn').click(); }
+        document.getElementById('camIn').addEventListener('change', fileHandler);
+        document.getElementById('fileIn').addEventListener('change', fileHandler);
+
+        // UI Helpers
+        function openAI() { document.getElementById('aiModal').style.display = 'flex'; }
+        function closeAI() { document.getElementById('aiModal').style.display = 'none'; }
+        function openHelp() { document.getElementById('helpModal').style.display = 'flex'; }
+        function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
+
+        function copyPrompt() {
+            const txt = document.getElementById('promptText');
+            txt.select();
+            txt.setSelectionRange(0, 99999);
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(txt.value).then(() => showToast("Copied!")).catch(() => execCopy(txt));
+                } else { execCopy(txt); }
+            } catch(e) { execCopy(txt); }
+        }
+        function execCopy(elem) {
+            try { document.execCommand('copy'); showToast("Copied!"); } 
+            catch (e) { alert("Please long-press text to copy"); }
+        }
+
+        function processBatch() {
+            let raw = document.getElementById('jsonInput').value.trim();
+            if (!raw) return alert("Paste JSON first");
+
+            raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            raw = raw.replace(/[\u201C\u201D]/g, '"'); 
+            if (raw.startsWith('{') && raw.endsWith('}')) {
+                 if(raw.includes('},{') || raw.includes('}, {')) raw = `[${raw}]`;
+                 else if(!raw.includes('[')) raw = `[${raw}]`;
+            }
+
+            try {
+                const data = JSON.parse(raw);
+                const items = Array.isArray(data) ? data : [data];
+                items.forEach(i => addCard(i.name||"", i.address||"", i.phone||"", i.urgent||false));
+                document.getElementById('jsonInput').value = "";
+                closeAI();
+                showToast(`Imported ${items.length} items`);
+            } catch (e) {
+                alert("JSON Error. Ensure you copied the code block.\n\n" + e.message);
+            }
+        }
+
+        // Crop & OCR
+        function fileHandler(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('cropModal').style.display = 'flex';
+                const img = document.getElementById('cropImg');
+                img.src = ev.target.result;
+                if(cropper) cropper.destroy();
+                setTimeout(() => {
+                    cropper = new Cropper(img, { viewMode:1, autoCropArea:0.6, minContainerHeight:300 });
+                }, 100);
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        }
+        function closeCrop() {
+            document.getElementById('cropModal').style.display = 'none';
+            if(cropper) { cropper.destroy(); cropper=null; }
+        }
+        async function doOCR() {
+            if(!cropper) return;
+            document.getElementById('loader').style.display = 'flex';
+            const canvas = cropper.getCroppedCanvas();
+            const imgData = canvas.toDataURL('image/png');
+            closeCrop();
+            try {
+                const { data: { text } } = await worker.recognize(imgData);
+                const lines = text.split('\n').filter(l => l.trim().length > 0);
+                let name = "", addr = "";
+                if(lines.length > 0) name = lines[0].trim();
+                if(lines.length > 1) addr = lines.slice(1).join(', ').trim();
+                else { addr = name; name = ""; }
+                const isUrg = /EXP|Express|Urgent|Priority/i.test(text);
+                addCard(name, addr, "", isUrg);
+            } catch(e) { alert("OCR Failed"); }
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        // Card Mgmt
+        function addCard(name="", addr="", phone="", isUrg=false) {
+            stops.push({ id: Date.now()+Math.random(), name, addr, phone, isUrg, done: false });
+            render(); save();
+        }
+
+        function render() {
+            const list = document.getElementById('list');
+            list.innerHTML = "";
+            const total = stops.length;
+            const done = stops.filter(s => s.done).length;
+            const urg = stops.filter(s => s.isUrg && !s.done).length;
+            
+            document.getElementById('statTotal').innerText = total;
+            document.getElementById('statDone').innerText = done;
+            document.getElementById('statPending').innerText = total - done;
+            document.getElementById('statUrg').innerText = urg;
+
+            // Empty State
+            const emptyDiv = document.getElementById('emptyState');
+            if(total === 0) {
+                emptyDiv.style.display = 'block';
+                list.style.display = 'none';
+                document.getElementById('goBtn').style.display = 'none';
+                return;
+            } else {
+                emptyDiv.style.display = 'none';
+                list.style.display = 'flex';
+            }
+
+            // Go Button
+            const pending = total - done;
+            const goBtn = document.getElementById('goBtn');
+            if(pending > 0) {
+                goBtn.style.display = 'flex';
+                document.getElementById('routeCount').innerText = pending > 9 ? "9+" : pending;
+            } else {
+                goBtn.style.display = 'none';
+            }
+
+            stops.forEach((s, idx) => {
+                const div = document.createElement('div');
+                div.className = `card ${s.isUrg ? 'urgent' : ''} ${s.done ? 'completed' : ''}`;
+                div.innerHTML = `
+                    <div class="card-header">
+                        <div class="stop-idx">#${idx+1}</div>
+                        <div class="badges">
+                            ${s.isUrg ? '<span class="badge-urg">PRIORITY</span>' : ''}
+                            <div class="check-circle ${s.done ? 'checked' : ''}" onclick="toggleDone(${s.id})">✓</div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="lbl">Address</label>
+                        <input class="inp" value="${s.addr}" oninput="update(${s.id}, 'addr', this.value)" placeholder="Enter Address">
+                    </div>
+                    <div class="row-2">
+                        <div><label class="lbl">Recipient</label><input class="inp" value="${s.name}" oninput="update(${s.id}, 'name', this.value)" placeholder="Name"></div>
+                        <div><label class="lbl">Phone</label><input class="inp" type="tel" value="${s.phone}" oninput="update(${s.id}, 'phone', this.value)" placeholder="Mobile"></div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-nav" onclick="navOne('${s.addr}')">📍 Map</button>
+                        <button class="btn btn-call" onclick="location.href='tel:${s.phone}'">📞 Call</button>
+                        <button class="btn btn-del" onclick="del(${s.id})">🗑</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function update(id, field, val) {
+            const s = stops.find(x => x.id === id);
+            if(s) { s[field] = val; save(); }
+        }
+        function toggleDone(id) {
+            const s = stops.find(x => x.id === id);
+            if(s) { s.done = !s.done; render(); save(); }
+        }
+        function del(id) {
+            if(confirm("Delete this stop?")) { stops = stops.filter(x => x.id !== id); render(); save(); }
+        }
+        function sortCards() {
+            stops.sort((a, b) => {
+                if(a.done === b.done) return (b.isUrg ? 1 : 0) - (a.isUrg ? 1 : 0);
+                return a.done - b.done;
+            });
+            render(); save();
+            showToast("Priorities Sorted");
+        }
+        
+        // SAMPLE DATA FUNCTION
+        function loadSampleData() {
+            if(stops.length > 0 && !confirm("Replace current list with training data?")) return;
+            
+            const sampleData = [
+                { id: 101, name: "Apex Logistics HQ", addr: "15 Cargo Way, Foreshore, Cape Town", phone: "0215550100", isUrg: false, done: true },
+                { id: 102, name: "Sarah Connor", addr: "42 Tech Boulevard, Century City", phone: "0829998888", isUrg: true, done: false },
+                { id: 103, name: "Green Leaf Cafe", addr: "88 Bree Street, Cape Town City Centre", phone: "0214443333", isUrg: true, done: false },
+                { id: 104, name: "John Wick", addr: "7 Continental Ave, Camps Bay", phone: "0837776666", isUrg: false, done: false },
+                { id: 105, name: "Skyline Apartments", addr: "101 Sea Point Promenade", phone: "0212221111", isUrg: false, done: false }
+            ];
+            
+            stops = sampleData.map(s => ({...s, id: Date.now() + Math.random()})); // Regens IDs
+            save();
+            render();
+            showToast("Training Route Loaded");
+        }
+
+        // ROUTING ENGINE (Sanco Certified v7.2)
+        function routeAll() {
+            const active = stops.filter(s => !s.done && s.addr);
+            if(active.length === 0) return alert("No active addresses to route");
+            
+            // "My Location" optimization (Systems Thinking)
+            let url = "https://www.google.com/maps/dir/My+Location/";
+            
+            // Append stops (up to 9 due to Google Maps URL limits)
+            active.slice(0, 9).forEach(s => url += encodeURIComponent(s.addr) + "/");
+            window.open(url, '_blank');
+        }
+        function navOne(addr) {
+            if(!addr) return alert("No address entered");
+            window.open("https://www.google.com/maps/dir/My+Location/" + encodeURIComponent(addr), '_blank');
+        }
+        
+        function save() { localStorage.setItem('apex_v7', JSON.stringify(stops)); }
+        function loadData() {
+            const raw = localStorage.getItem('apex_v7');
+            if(raw) { stops = JSON.parse(raw); render(); }
+            const name = localStorage.getItem('apex_driver');
+            if(name) document.getElementById('driverName').innerText = name;
+        }
+        function settings() {
+            const n = prompt("Driver Name:", document.getElementById('driverName').innerText);
+            if(n) { localStorage.setItem('apex_driver', n); document.getElementById('driverName').innerText = n; }
+            
+            // Custom Settings Menu
+            if(confirm("Manual Control:\n\nOK = Load Training Data\nCancel = Clear All Data")) {
+                loadSampleData();
+            } else {
+                if(confirm("⚠️ Are you sure you want to clear the entire route?")) { stops=[]; save(); render(); }
+            }
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+    </script>
+</body>
+</html>
